@@ -278,7 +278,7 @@ describe('FeatureAppManager', () => {
       });
 
       describe('that throws an error', () => {
-        it('throws the same error and unbinds the bound Feature Services', () => {
+        it('does not throw but logs the error', () => {
           const mockError = new Error('mockError');
 
           expect(() =>
@@ -291,9 +291,11 @@ describe('FeatureAppManager', () => {
                 },
               }
             )
-          ).toThrowError(mockError);
+          ).not.toThrow();
 
-          expect(mockFeatureServicesBindingUnbind).toHaveBeenCalledTimes(1);
+          expect(logger.error.mock.calls).toEqual([
+            ['Failed to execute beforeCreate callback.', mockError],
+          ]);
         });
       });
     });
@@ -319,6 +321,62 @@ describe('FeatureAppManager', () => {
         expect(mockFeatureAppCreate.mock.calls).toEqual([
           [{featureServices, featureAppId, done: mockDone}],
         ]);
+      });
+    });
+
+    describe('with an onBind callback', () => {
+      it('calls the onBind callback successfully', () => {
+        const mockOnBind = jest.fn();
+        const featureAppId = 'testId';
+        const featureAppName = 'testName';
+
+        featureAppManager = new FeatureAppManager(mockFeatureServiceRegistry, {
+          logger,
+          onBind: mockOnBind,
+        });
+
+        featureAppManager.createFeatureAppScope(
+          featureAppId,
+          mockFeatureAppDefinition,
+          {featureAppName}
+        );
+
+        expect(mockOnBind.mock.calls).toEqual([
+          [
+            {
+              featureAppDefinition: mockFeatureAppDefinition,
+              featureAppId,
+              featureAppName,
+            },
+          ],
+        ]);
+      });
+
+      describe('that throws an error', () => {
+        it('does not throw but logs the error', () => {
+          const mockError = new Error('mockError');
+
+          featureAppManager = new FeatureAppManager(
+            mockFeatureServiceRegistry,
+            {
+              logger,
+              onBind: () => {
+                throw mockError;
+              },
+            }
+          );
+
+          expect(() =>
+            featureAppManager.createFeatureAppScope(
+              'testId',
+              mockFeatureAppDefinition
+            )
+          ).not.toThrow();
+
+          expect(logger.error.mock.calls).toEqual([
+            ['Failed to execute onBind callback.', mockError],
+          ]);
+        });
       });
     });
 
